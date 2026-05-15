@@ -349,8 +349,12 @@ serve(async (req: Request) => {
 
     if (uploadError) throw new Error(`Storage upload: ${uploadError.message}`)
 
-    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(pdfPath)
-    const pdfUrl = urlData.publicUrl
+    // Bucket es privado — se requiere URL firmada (válida por 5 años)
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(pdfPath, 157_680_000)  // 5 años en segundos
+    if (signedError) throw new Error(`Signed URL: ${signedError.message}`)
+    const pdfUrl = signedData.signedUrl
 
     // ── Insertar registro en BD ──────────────────────────────────────────────
     const { error: dbError } = await supabase.from('consentimientos').insert({
