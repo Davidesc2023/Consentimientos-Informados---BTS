@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?features=database,storage,edge_functions,docs,development,debug,account"
+    }
+  }
+}

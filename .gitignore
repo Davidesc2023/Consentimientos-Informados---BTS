@@ -1,0 +1,32 @@
+# Dependencias
+node_modules/
+frontend/node_modules/
+
+# Builds
+frontend/dist/
+frontend/.vite/
+
+# Variables de entorno (¡NO subir!)
+.env
+.env.local
+.env*.local
+frontend/.env
+frontend/.env.local
+frontend/.env*.local
+
+# Supabase local (solo para CLI)
+supabase/.temp/
+supabase/config.toml
+
+# IDEs / OS
+.vscode/settings.json
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Skills (artefactos de Copilot - no son código del proyecto)
+skills-lock.json
+.agents/
