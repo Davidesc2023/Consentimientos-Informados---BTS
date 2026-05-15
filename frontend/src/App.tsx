@@ -86,14 +86,14 @@ export default function App() {
     <div className="min-h-screen bg-gray-50">
       <Header />
 
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-6">
         <ConsentText />
 
         <FormProvider {...methods}>
           <form
             onSubmit={methods.handleSubmit(onSubmit)}
             noValidate
-            className="bg-white border border-gray-200 rounded-lg p-6 space-y-6"
+            className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 space-y-5 sm:space-y-6"
           >
             <PatientForm />
 

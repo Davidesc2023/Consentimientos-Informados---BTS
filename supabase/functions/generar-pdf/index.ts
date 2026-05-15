@@ -74,26 +74,45 @@ serve(async (req: Request) => {
     const TEAL = rgb(0.039, 0.42, 0.42) // #0A6B6B
     const BLACK = rgb(0, 0, 0)
     const GRAY = rgb(0.4, 0.4, 0.4)
+    const GOLD = rgb(0.72, 0.525, 0.043) // #B8860B
+    const WHITE = rgb(1, 1, 1)
 
-    // ── Página 1: Encabezado + datos del paciente ───────────────────────────
+    // ── Helper: dibujar encabezado de página ─────────────────────────────────
+    const drawPageHeader = (page: ReturnType<typeof pdfDoc.addPage>, pageNum: number) => {
+      const { width, height } = page.getSize()
+      // Fondo blanco con borde inferior teal (igual que el header web)
+      page.drawRectangle({ x: 0, y: height - 75, width, height: 75, color: WHITE })
+      page.drawRectangle({ x: 0, y: height - 78, width, height: 3, color: TEAL })
+
+      // Logo simulado: rectángulo teal pequeño con texto "BTS"
+      page.drawRectangle({ x: 30, y: height - 65, width: 42, height: 42, color: TEAL })
+      page.drawText('BTS', { x: 37, y: height - 45, size: 11, font: fontBold, color: WHITE })
+      page.drawText('INTEGRAL', { x: 32, y: height - 57, size: 6, font, color: WHITE })
+
+      // Textos del encabezado
+      page.drawText('PROGRAMA DE SOPORTE A PACIENTES', {
+        x: 82, y: height - 28, size: 7, font, color: GRAY,
+      })
+      page.drawText('Valentech Pharma Colombia', {
+        x: 82, y: height - 42, size: 13, font: fontBold, color: BLACK,
+      })
+      page.drawText('Operado por BTS Integral \u00b7 Cl\u00ednicas Botospa S.A.S.', {
+        x: 82, y: height - 56, size: 7, font, color: GOLD,
+      })
+      // Número de página (alineado a la derecha)
+      page.drawText(`P\u00e1g. ${pageNum}/3`, {
+        x: width - 60, y: height - 45, size: 7, font, color: GRAY,
+      })
+    }
+
+    // ── Página 1: Datos del paciente ─────────────────────────────────────────
     const page1 = pdfDoc.addPage([595, 842]) // A4
     const { width, height } = page1.getSize()
     let y = height - 40
-
-    // Encabezado fondo teal
-    page1.drawRectangle({ x: 0, y: height - 80, width, height: 80, color: TEAL })
-    page1.drawText('BTS INTEGRAL', {
-      x: 30, y: height - 35, size: 18, font: fontBold, color: rgb(1, 1, 1),
-    })
-    page1.drawText(PROGRAM_NAME, {
-      x: 30, y: height - 55, size: 7.5, font, color: rgb(0.95, 0.85, 0.2),
-    })
-    page1.drawText('Clínicas Botospa S.A.S.', {
-      x: 30, y: height - 67, size: 7, font, color: rgb(1, 1, 1),
-    })
+    drawPageHeader(page1, 1)
 
     y = height - 100
-    page1.drawText('AUTORIZACIÓN PARA EL TRATAMIENTO DE DATOS PERSONALES', {
+    page1.drawText('AUTORIZACION PARA EL TRATAMIENTO DE DATOS PERSONALES', {
       x: 30, y, size: 12, font: fontBold, color: TEAL,
     })
 
@@ -145,9 +164,9 @@ serve(async (req: Request) => {
 
     // ── Página 2: Texto legal ────────────────────────────────────────────────
     const page2 = pdfDoc.addPage([595, 842])
-    page2.drawRectangle({ x: 0, y: 842 - 50, width: 595, height: 50, color: TEAL })
-    page2.drawText('Autorización — Texto Legal Completo', {
-      x: 30, y: 842 - 35, size: 11, font: fontBold, color: rgb(1, 1, 1),
+    drawPageHeader(page2, 2)
+    page2.drawText('Autorizacion - Texto Legal Completo', {
+      x: 30, y: 842 - 100, size: 11, font: fontBold, color: TEAL,
     })
 
     const textoLegal = [
@@ -176,7 +195,7 @@ serve(async (req: Request) => {
       '    Dirección: Calle 90 # 18-59 Bogotá, Colombia | legal@bts-corporate.com',
     ]
 
-    let y2 = 842 - 70
+    let y2 = 842 - 120
     for (const linea of textoLegal) {
       if (y2 < 60) break
       page2.drawText(linea, { x: 30, y: y2, size: 7.5, font, color: BLACK })
@@ -185,12 +204,12 @@ serve(async (req: Request) => {
 
     // ── Página 3: Declaración + firma ────────────────────────────────────────
     const page3 = pdfDoc.addPage([595, 842])
-    page3.drawRectangle({ x: 0, y: 842 - 50, width: 595, height: 50, color: TEAL })
-    page3.drawText('Declaración de Autorización y Firma', {
-      x: 30, y: 842 - 35, size: 11, font: fontBold, color: rgb(1, 1, 1),
+    drawPageHeader(page3, 3)
+    page3.drawText('Declaracion de Autorizacion y Firma', {
+      x: 30, y: 842 - 100, size: 11, font: fontBold, color: TEAL,
     })
 
-    let y3 = 842 - 80
+    let y3 = 842 - 120
     const declaracion = [
       'DECLARACIÓN: He leído y entendido el presente documento de Autorización para el Tratamiento',
       'de Datos Personales. Declaro que se me informó sobre las finalidades y condiciones del tratamiento',

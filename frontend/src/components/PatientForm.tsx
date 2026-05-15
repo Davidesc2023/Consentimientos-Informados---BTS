@@ -44,7 +44,7 @@ export default function PatientForm() {
       </div>
 
       {/* Tipo y número de documento */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <Label required>Tipo de Documento</Label>
           <select {...register('tipo_documento')} className={inputClass}>
@@ -144,7 +144,7 @@ export default function PatientForm() {
             <FieldError name="nombre_acudiente" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label required>Tipo de Documento</Label>
               <select {...register('tipo_doc_acudiente')} className={inputClass}>
