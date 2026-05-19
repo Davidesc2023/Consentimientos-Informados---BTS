@@ -51,7 +51,7 @@ export const consentimientoSchema = z
     tipo_doc_acudiente: z
       .enum(TipoDocumento)
       .optional()
-      .or(z.literal('' as never)),
+      .or(z.literal('')),
     documento_acudiente: z.string().optional().or(z.literal('')),
 
     // Aceptación
@@ -107,7 +107,7 @@ export const consentimientoSchema = z
           message: 'Nombre del acudiente es requerido para menores de edad',
         })
       }
-      if (!data.tipo_doc_acudiente || data.tipo_doc_acudiente === '') {
+      if (!data.tipo_doc_acudiente) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['tipo_doc_acudiente'],
