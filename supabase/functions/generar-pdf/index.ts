@@ -107,8 +107,8 @@ serve(async (req: Request) => {
       }
     } catch (_) { /* fallback texto */ }
 
-    const HEADER_H   = 62
-    const FOOTER_H   = 32   // mas alto para 2 lineas de footer
+    const HEADER_H   = 74
+    const FOOTER_H   = 38
     const TOTAL_PAGES = 3
 
     // ── Word-wrap ────────────────────────────────────────────────────────────
@@ -125,39 +125,53 @@ serve(async (req: Request) => {
       return lines
     }
 
-    // ── Encabezado ───────────────────────────────────────────────────────────
+    // ── Encabezado — fondo blanco, textos teal ────────────────────────────────
     const drawHeader = (page, pageNum) => {
-      page.drawRectangle({ x: 0, y: H - HEADER_H, width: W, height: HEADER_H, color: TEAL })
-      page.drawRectangle({ x: 0, y: H - HEADER_H - 2, width: W, height: 2, color: GOLD })
-      if (logoImage) {
-        const lw = 90; const lh = lw * (logoImage.height / logoImage.width)
-        page.drawImage(logoImage, { x: 14, y: H - HEADER_H + (HEADER_H - lh) / 2, width: lw, height: lh })
-      } else {
-        page.drawRectangle({ x: 14, y: H - HEADER_H + 9, width: 44, height: 44, color: TEAL_DARK })
-        page.drawText('BTS',      { x: 22, y: H - HEADER_H + 30, size: 14, font: fontBold, color: WHITE })
-        page.drawText('INTEGRAL', { x: 15, y: H - HEADER_H + 16, size: 6,  font,           color: WHITE })
-      }
-      const tx = logoImage ? 118 : 72
-      page.drawText('PROGRAMA DE SOPORTE A PACIENTES', { x: tx, y: H - HEADER_H + 42, size: 7, font, color: rgb(0.75, 0.93, 0.93) })
-      page.drawText('Valentech Pharma Colombia', { x: tx, y: H - HEADER_H + 27, size: 13.5, font: fontBold, color: WHITE })
-      page.drawText('Operado por BTS Integral - Clinicas Botospa S.A.S.', { x: tx, y: H - HEADER_H + 12, size: 7.5, font, color: rgb(0.95, 0.85, 0.4) })
-      // Titulo centrado en la parte superior del encabezado
+      // Fondo blanco
+      page.drawRectangle({ x: 0, y: H - HEADER_H, width: W, height: HEADER_H, color: WHITE })
+      // Franja teal superior con titulo del documento
+      page.drawRectangle({ x: 0, y: H - 17, width: W, height: 17, color: TEAL })
       const titulo = 'AUTORIZACION PARA EL TRATAMIENTO DE DATOS PERSONALES'
-      const tituloW = fontBold.widthOfTextAtSize(titulo, 7)
-      page.drawText(titulo, { x: (W - tituloW) / 2, y: H - 10, size: 7, font: fontBold, color: WHITE })
-      page.drawText(`${pageNum} / ${TOTAL_PAGES}`, { x: W - 46, y: H - HEADER_H + 27, size: 10, font: fontBold, color: rgb(0.8, 0.95, 0.95) })
+      const tituloW = fontBold.widthOfTextAtSize(titulo, 8)
+      page.drawText(titulo, { x: (W - tituloW) / 2, y: H - 12, size: 8, font: fontBold, color: WHITE })
+      // Borde inferior teal
+      page.drawRectangle({ x: 0, y: H - HEADER_H - 3, width: W, height: 3, color: TEAL })
+      // Logo
+      if (logoImage) {
+        const lw = 105; const lh = lw * (logoImage.height / logoImage.width)
+        page.drawImage(logoImage, { x: 14, y: H - HEADER_H + (HEADER_H - 17 - lh) / 2, width: lw, height: lh })
+      } else {
+        page.drawRectangle({ x: 14, y: H - HEADER_H + 10, width: 46, height: 44, color: TEAL })
+        page.drawText('BTS',      { x: 22, y: H - HEADER_H + 34, size: 14, font: fontBold, color: WHITE })
+        page.drawText('INTEGRAL', { x: 15, y: H - HEADER_H + 18, size: 6,  font,           color: WHITE })
+      }
+      const tx = logoImage ? 132 : 74
+      // Separador vertical sutil
+      page.drawLine({ start: { x: tx - 8, y: H - HEADER_H + 6 }, end: { x: tx - 8, y: H - 21 }, thickness: 0.6, color: TEAL_LITE })
+      page.drawText('PROGRAMA DE SOPORTE A PACIENTES', { x: tx, y: H - HEADER_H + 50, size: 7.5, font, color: TEAL })
+      page.drawText('Valentech Pharma Colombia',        { x: tx, y: H - HEADER_H + 34, size: 13,  font: fontBold, color: TEAL_DARK })
+      page.drawText('Operado por BTS Integral - Clinicas Botospa S.A.S.', { x: tx, y: H - HEADER_H + 18, size: 7.5, font, color: TEAL })
+      // Numero de pagina
+      const pgText = `${pageNum} / ${TOTAL_PAGES}`
+      const pgW = fontBold.widthOfTextAtSize(pgText, 11)
+      page.drawText(pgText, { x: W - MR - pgW, y: H - HEADER_H + 34, size: 11, font: fontBold, color: TEAL_DARK })
     }
 
-    // ── Pie de pagina con validez juridica ───────────────────────────────────
+    // ── Pie de pagina — fondo teal, textos blancos ──────────────────────────────
     const drawFooter = (page, rad) => {
-      page.drawLine({ start: { x: 0, y: FOOTER_H + 2 }, end: { x: W, y: FOOTER_H + 2 }, thickness: 0.5, color: TEAL_LITE })
-      // Linea 1: validez juridica (centrado)
+      // Fondo teal para todo el footer
+      page.drawRectangle({ x: 0, y: 0, width: W, height: FOOTER_H + 6, color: TEAL })
+      // Linea superior de separacion
+      page.drawRectangle({ x: 0, y: FOOTER_H + 5, width: W, height: 1.5, color: TEAL_DARK })
+      // Linea 1: validez juridica centrada
       const valText = 'Documento generado electronicamente con validez juridica segun la Ley 527 de 1999 (Comercio Electronico).'
       const valW = font.widthOfTextAtSize(valText, 6.5)
-      page.drawText(valText, { x: (W - valW) / 2, y: FOOTER_H - 4, size: 6.5, font, color: TEAL_DARK })
-      // Linea 2: empresa | contacto | radicado
-      page.drawText(`BTS Integral - Clinicas Botospa S.A.S.  |  ${CONTACT_EMAIL}`, { x: ML, y: 7, size: 6, font, color: GRAY_D })
-      page.drawText(`Radicado: ${rad}`, { x: W - 190, y: 7, size: 6, font, color: TEAL_DARK })
+      page.drawText(valText, { x: (W - valW) / 2, y: FOOTER_H - 2, size: 6.5, font, color: WHITE })
+      // Linea 2: empresa | contacto a la izquierda, radicado a la derecha
+      page.drawText(`BTS Integral - Clinicas Botospa S.A.S.  |  ${CONTACT_EMAIL}`, { x: ML, y: 10, size: 6, font, color: rgb(0.85, 0.97, 0.97) })
+      const radText = `Radicado: ${rad}`
+      const radW = font.widthOfTextAtSize(radText, 6)
+      page.drawText(radText, { x: W - MR - radW, y: 10, size: 6, font, color: WHITE })
     }
 
     // ── Titulo de seccion: barra teal izquierda + texto bold + linea ─────────
@@ -333,36 +347,26 @@ serve(async (req: Request) => {
     y3 = drawParagraph(page3, textoAutorizacion, y3, 0, 8.5, 13)
     y3 -= 14
 
-    // Tabla de 3 columnas: ACEPTO / AUTORIZO | (espacio) | FIRMA
-    const tableTop = y3
-    const tableH   = 70
-    const col1W    = 160
-    const col2W    = 180
-    const col3W    = CW - col1W - col2W
-    // Bordes tabla
-    page3.drawRectangle({ x: ML,               y: tableTop - tableH, width: col1W, height: tableH, borderColor: GRAY_L, borderWidth: 0.6 })
-    page3.drawRectangle({ x: ML + col1W,        y: tableTop - tableH, width: col2W, height: tableH, borderColor: GRAY_L, borderWidth: 0.6 })
-    page3.drawRectangle({ x: ML + col1W + col2W, y: tableTop - tableH, width: col3W, height: tableH, borderColor: GRAY_L, borderWidth: 0.6 })
-    // Texto col1
-    page3.drawText('ACEPTO / AUTORIZO', { x: ML + 6, y: tableTop - 14, size: 8.5, font: fontBold, color: BLACK })
-    page3.drawText('[X]', { x: ML + 6, y: tableTop - 30, size: 13, font: fontBold, color: TEAL })
-    // Texto col3
-    page3.drawText('FIRMA:', { x: ML + col1W + col2W + 6, y: tableTop - tableH + 10, size: 8, font: fontBold, color: GRAY_D })
+    // Seccion FIRMA
+    page3.drawText('FIRMA DEL PACIENTE O REPRESENTANTE LEGAL:', { x: ML, y: y3, size: 9, font: fontBold, color: TEAL_DARK })
+    y3 -= 6
+    page3.drawLine({ start: { x: ML, y: y3 }, end: { x: W - MR, y: y3 }, thickness: 0.8, color: TEAL })
+    y3 -= 18
 
-    y3 = tableTop - tableH - 22
-
-    // Imagen de firma dentro de la tabla col3 o debajo si no cabe
+    // Caja de firma centrada
+    const sigBoxW = 290; const sigBoxH = 115
+    const sigBoxX = (W - sigBoxW) / 2
+    page3.drawRectangle({ x: sigBoxX, y: y3 - sigBoxH, width: sigBoxW, height: sigBoxH, borderColor: TEAL_LITE, borderWidth: 1.2 })
     try {
       const base64Data = firmaBase64.replace(/^data:image\/png;base64,/, '')
       const pngBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
       const sigImage = await pdfDoc.embedPng(pngBytes)
-      const maxSigW = col3W - 12; const maxSigH = tableH - 20
+      const maxSigW = sigBoxW - 24; const maxSigH = sigBoxH - 20
       const ratio = Math.min(maxSigW / sigImage.width, maxSigH / sigImage.height)
       const sw = sigImage.width * ratio; const sh = sigImage.height * ratio
-      const sigX = ML + col1W + col2W + 6
-      const sigY = tableTop - tableH + 14
-      page3.drawImage(sigImage, { x: sigX, y: sigY, width: sw, height: sh })
+      page3.drawImage(sigImage, { x: sigBoxX + (sigBoxW - sw) / 2, y: y3 - sigBoxH + (sigBoxH - sh) / 2, width: sw, height: sh })
     } catch (_e) { /* sin firma */ }
+    y3 = y3 - sigBoxH - 22
 
     // Datos del firmante
     const nombreFirmante = d.menor_de_edad && d.nombre_acudiente
