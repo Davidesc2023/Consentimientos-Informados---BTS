@@ -62,7 +62,17 @@ export default function App() {
         },
       })
 
-      if (error) throw error
+      if (error) {
+        // Intentar extraer el mensaje real del cuerpo de la respuesta
+        let message = error.message
+        if (error.context) {
+          try {
+            const body = await (error.context as Response).json()
+            if (body?.error) message = body.error
+          } catch { /* ignorar */ }
+        }
+        throw new Error(message)
+      }
 
       setRadicado((result as { radicado: string }).radicado)
       setAppState('success')
