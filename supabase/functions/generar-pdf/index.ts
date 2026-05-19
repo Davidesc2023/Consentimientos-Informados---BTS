@@ -68,21 +68,23 @@ serve(async (req: Request) => {
 
     // ── Construir PDF ────────────────────────────────────────────────────────
     const pdfDoc = await PDFDocument.create()
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+    const font     = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
 
     const TEAL      = rgb(0.039, 0.42,  0.42)
     const TEAL_DARK = rgb(0.025, 0.30,  0.30)
-    const TEAL_LITE = rgb(0.90,  0.96,  0.96)
-    const BLACK     = rgb(0.12,  0.12,  0.12)
-    const GRAY      = rgb(0.40,  0.40,  0.40)
-    const GRAY_LITE = rgb(0.97,  0.97,  0.97)
+    const TEAL_LITE = rgb(0.88,  0.95,  0.95)
+    const BLACK     = rgb(0.10,  0.10,  0.10)
+    const GRAY_D    = rgb(0.42,  0.42,  0.42)
+    const GRAY_L    = rgb(0.80,  0.80,  0.80)
     const GOLD      = rgb(0.72,  0.525, 0.043)
     const WHITE     = rgb(1, 1, 1)
     const W = 595; const H = 842
+    const ML = 38; const MR = 38
+    const CW = W - ML - MR   // 519pt de ancho de contenido
 
-    // ── Logo real desde Storage publico ─────────────────────────────────────
-    let logoImage: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null
+    // ── Logo desde Storage publico ──────────────────────────────────────────
+    let logoImage = null
     try {
       const logoUrl = `${supabaseUrl}/storage/v1/object/public/assets/logo.png`
       const logoResp = await fetch(logoUrl)
@@ -92,118 +94,145 @@ serve(async (req: Request) => {
       }
     } catch (_) { /* fallback texto */ }
 
-    const HEADER_H = 56
-    const FOOTER_H = 22
-    const CONTENT_BOT = FOOTER_H + 8
+    const HEADER_H   = 62
+    const FOOTER_H   = 26
     const TOTAL_PAGES = 2
 
-    // ── Helper: encabezado ───────────────────────────────────────────────────
-    const drawHeader = (page: ReturnType<typeof pdfDoc.addPage>, pageNum: number) => {
+    // ── Word-wrap ────────────────────────────────────────────────────────────
+    const wrapText = (text, maxW, size, f) => {
+      const words = text.split(' ')
+      const lines = []
+      let cur = ''
+      for (const w of words) {
+        const t = cur ? `${cur} ${w}` : w
+        if (f.widthOfTextAtSize(t, size) > maxW && cur) { lines.push(cur); cur = w }
+        else { cur = t }
+      }
+      if (cur) lines.push(cur)
+      return lines
+    }
+
+    // ── Encabezado ───────────────────────────────────────────────────────────
+    const drawHeader = (page, pageNum) => {
       page.drawRectangle({ x: 0, y: H - HEADER_H, width: W, height: HEADER_H, color: TEAL })
       page.drawRectangle({ x: 0, y: H - HEADER_H - 2, width: W, height: 2, color: GOLD })
-
       if (logoImage) {
-        const lw = 88
-        const lh = lw * (logoImage.height / logoImage.width)
+        const lw = 90; const lh = lw * (logoImage.height / logoImage.width)
         page.drawImage(logoImage, { x: 14, y: H - HEADER_H + (HEADER_H - lh) / 2, width: lw, height: lh })
       } else {
-        page.drawRectangle({ x: 14, y: H - HEADER_H + 6, width: 46, height: 42, color: TEAL_DARK, borderColor: WHITE, borderWidth: 1 })
-        page.drawText('BTS',      { x: 22, y: H - HEADER_H + 28, size: 14, font: fontBold, color: WHITE })
-        page.drawText('INTEGRAL', { x: 15, y: H - HEADER_H + 14, size: 6,  font,           color: WHITE })
+        page.drawRectangle({ x: 14, y: H - HEADER_H + 9, width: 44, height: 44, color: TEAL_DARK })
+        page.drawText('BTS',      { x: 22, y: H - HEADER_H + 30, size: 14, font: fontBold, color: WHITE })
+        page.drawText('INTEGRAL', { x: 15, y: H - HEADER_H + 16, size: 6,  font,           color: WHITE })
       }
-
-      const tx = logoImage ? 114 : 72
-      page.drawText('PROGRAMA DE SOPORTE A PACIENTES', { x: tx, y: H - HEADER_H + 38, size: 7,    font,      color: rgb(0.75, 0.93, 0.93) })
-      page.drawText('Valentech Pharma Colombia',        { x: tx, y: H - HEADER_H + 24, size: 13,   font: fontBold, color: WHITE })
-      page.drawText('Operado por BTS Integral - Clinicas Botospa S.A.S.', { x: tx, y: H - HEADER_H + 10, size: 7.5, font, color: rgb(0.95, 0.85, 0.4) })
-      page.drawText(`${pageNum} / ${TOTAL_PAGES}`, { x: W - 44, y: H - HEADER_H + 24, size: 9, font: fontBold, color: rgb(0.8, 0.95, 0.95) })
+      const tx = logoImage ? 118 : 72
+      page.drawText('PROGRAMA DE SOPORTE A PACIENTES',               { x: tx, y: H - HEADER_H + 42, size: 7,    font,           color: rgb(0.75, 0.93, 0.93) })
+      page.drawText('Valentech Pharma Colombia',                      { x: tx, y: H - HEADER_H + 27, size: 13.5, font: fontBold, color: WHITE })
+      page.drawText('Operado por BTS Integral - Clinicas Botospa S.A.S.', { x: tx, y: H - HEADER_H + 12, size: 7.5, font, color: rgb(0.95, 0.85, 0.4) })
+      page.drawText(`${pageNum} / ${TOTAL_PAGES}`, { x: W - 46, y: H - HEADER_H + 27, size: 10, font: fontBold, color: rgb(0.8, 0.95, 0.95) })
     }
 
-    // ── Helper: pie de pagina ────────────────────────────────────────────────
-    const drawFooter = (page: ReturnType<typeof pdfDoc.addPage>, rad: string) => {
-      page.drawRectangle({ x: 0, y: 0, width: W, height: FOOTER_H, color: TEAL_LITE })
-      page.drawRectangle({ x: 0, y: FOOTER_H, width: W, height: 1, color: TEAL })
-      page.drawText(`BTS Integral - Clinicas Botospa S.A.S. - ${CONTACT_EMAIL}`, { x: 14, y: 7, size: 6.5, font, color: GRAY })
-      page.drawText(`Radicado: ${rad}`, { x: W - 200, y: 7, size: 6.5, font, color: TEAL_DARK })
+    // ── Pie de pagina ────────────────────────────────────────────────────────
+    const drawFooter = (page, rad) => {
+      page.drawLine({ start: { x: 0, y: FOOTER_H + 2 }, end: { x: W, y: FOOTER_H + 2 }, thickness: 0.5, color: TEAL_LITE })
+      page.drawText(`BTS Integral - Clinicas Botospa S.A.S.  |  ${CONTACT_EMAIL}`, { x: ML, y: 9, size: 6.5, font, color: GRAY_D })
+      page.drawText(`Radicado: ${rad}`, { x: W - 212, y: 9, size: 6.5, font, color: TEAL_DARK })
     }
 
-    // ── Helper: titulo de seccion ────────────────────────────────────────────
-    const drawSectionTitle = (page: ReturnType<typeof pdfDoc.addPage>, label: string, yPos: number): number => {
-      page.drawRectangle({ x: 14, y: yPos - 3, width: W - 28, height: 16, color: TEAL_LITE })
-      page.drawRectangle({ x: 14, y: yPos - 3, width: 3.5, height: 16, color: TEAL })
-      page.drawText(label, { x: 22, y: yPos + 1, size: 8.5, font: fontBold, color: TEAL_DARK })
-      return yPos - 20
+    // ── Titulo de seccion: barra teal izquierda + texto bold + linea ─────────
+    const drawSection = (page, label, yPos) => {
+      page.drawRectangle({ x: ML, y: yPos - 2, width: 3, height: 15, color: TEAL })
+      page.drawText(label, { x: ML + 9, y: yPos + 2, size: 9.5, font: fontBold, color: TEAL_DARK })
+      page.drawLine({ start: { x: ML, y: yPos - 4 }, end: { x: W - MR, y: yPos - 4 }, thickness: 0.4, color: TEAL_LITE })
+      return yPos - 22
     }
 
-    // ── Helper: fila de dato ─────────────────────────────────────────────────
-    const ROW_H = 14
-    const drawDataRow = (
-      page: ReturnType<typeof pdfDoc.addPage>,
-      label: string, value: string,
-      yPos: number, shade: boolean,
-    ): number => {
-      if (shade) page.drawRectangle({ x: 14, y: yPos - 2, width: W - 28, height: ROW_H, color: GRAY_LITE })
-      page.drawText(label, { x: 18,  y: yPos + 1, size: 7.5, font: fontBold, color: GRAY })
-      page.drawText(value, { x: 185, y: yPos + 1, size: 7.5, font,           color: BLACK })
-      return yPos - ROW_H
+    // ── Campo de datos: label | valor, solo linea inferior, sin fondo ────────
+    const FIELD_H = 17
+    const VAL_X   = ML + 170
+    const drawField = (page, label, value, yPos) => {
+      page.drawText(label,        { x: ML + 5, y: yPos, size: 7.5, font: fontBold, color: GRAY_D })
+      page.drawText(value || '—', { x: VAL_X,  y: yPos, size: 8,   font,           color: BLACK  })
+      page.drawLine({ start: { x: ML, y: yPos - 6 }, end: { x: W - MR, y: yPos - 6 }, thickness: 0.25, color: GRAY_L })
+      return yPos - FIELD_H
+    }
+
+    // ── Clausula legal: titulo bold + parrafo con wordwrap ───────────────────
+    const drawClause = (page, title, body, yPos) => {
+      if (yPos < FOOTER_H + 22) return yPos
+      page.drawText(title, { x: ML + 5, y: yPos, size: 8, font: fontBold, color: TEAL_DARK })
+      yPos -= 12
+      const lines = wrapText(body, CW - 20, 7.5, font)
+      for (const line of lines) {
+        if (yPos < FOOTER_H + 12) break
+        page.drawText(line, { x: ML + 15, y: yPos, size: 7.5, font, color: BLACK })
+        yPos -= 11
+      }
+      return yPos - 6
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // PAGINA 1 - Datos del paciente + Texto legal
+    // PAGINA 1 — Datos del paciente + Texto legal
     // ════════════════════════════════════════════════════════════════════════
     const page1 = pdfDoc.addPage([W, H])
     drawHeader(page1, 1)
     drawFooter(page1, radicado)
 
-    let y = H - HEADER_H - 10
+    let y = H - HEADER_H - 16
 
-    page1.drawText('AUTORIZACION TRATAMIENTO DE DATOS PERSONALES', {
-      x: 14, y, size: 10.5, font: fontBold, color: TEAL_DARK,
+    // Titulo del documento
+    page1.drawText('AUTORIZACION DE TRATAMIENTO DE DATOS PERSONALES', {
+      x: ML, y, size: 11.5, font: fontBold, color: TEAL_DARK,
     })
-    y -= 13
-    page1.drawText(`Radicado: ${radicado}`, { x: 14, y, size: 7.5, font, color: GRAY })
-    page1.drawText(`Fecha: ${fechaTexto}  -  ${horaTexto}`, { x: 280, y, size: 7.5, font, color: GRAY })
-    y -= 14
+    y -= 6
+    page1.drawLine({ start: { x: ML, y }, end: { x: W - MR, y }, thickness: 0.8, color: TEAL })
+    y -= 9
 
-    y = drawSectionTitle(page1, 'DATOS DEL PACIENTE', y)
+    // Radicado y fecha en la misma linea
+    page1.drawText(`Radicado: ${radicado}`, { x: ML, y, size: 7.5, font, color: GRAY_D })
+    page1.drawText(`Fecha: ${fechaTexto}   ${horaTexto}`, { x: W - MR - 132, y, size: 7.5, font, color: GRAY_D })
+    y -= 18
+
+    // Seccion datos del paciente
+    y = drawSection(page1, 'DATOS DEL PACIENTE', y)
     y -= 2
+    page1.drawLine({ start: { x: ML, y: y + 3 }, end: { x: W - MR, y: y + 3 }, thickness: 0.25, color: GRAY_L })
 
     const campos: [string, string][] = [
-      ['Nombre completo',     d.nombre_paciente],
-      ['Tipo de documento',   d.tipo_documento],
-      ['N. de documento',     d.numero_documento],
-      ['Fecha de nacimiento', d.fecha_nacimiento],
-      ['Telefono / Celular',  d.telefono],
-      ['Correo electronico',  d.correo || '-'],
-      ['Ciudad / Municipio',  d.ciudad || '-'],
-      ['Direccion',           d.direccion || '-'],
+      ['Nombre completo',          d.nombre_paciente],
+      ['Tipo de documento',        d.tipo_documento],
+      ['Numero de documento',      d.numero_documento],
+      ['Fecha de nacimiento',      d.fecha_nacimiento],
+      ['Telefono / Celular',       d.telefono],
+      ['Correo electronico',       d.correo || '—'],
+      ['Ciudad / Municipio',       d.ciudad || '—'],
+      ['Direccion de residencia',  d.direccion || '—'],
     ]
-    campos.forEach(([label, value], i) => {
-      y = drawDataRow(page1, label, value, y, i % 2 === 0)
-    })
-
-    if (d.menor_de_edad) {
-      y -= 6
-      y = drawSectionTitle(page1, 'REPRESENTANTE LEGAL / ACUDIENTE', y)
-      y -= 2
-      const acudiente: [string, string][] = [
-        ['Nombre completo', d.nombre_acudiente || '-'],
-        ['Tipo documento',  d.tipo_doc_acudiente || '-'],
-        ['N. documento',    d.documento_acudiente || '-'],
-      ]
-      acudiente.forEach(([label, value], i) => {
-        y = drawDataRow(page1, label, value, y, i % 2 === 0)
-      })
+    for (const [label, value] of campos) {
+      y = drawField(page1, label, value, y)
     }
 
-    y -= 8
-    y = drawSectionTitle(page1, 'AUTORIZACION - TEXTO LEGAL', y)
-    y -= 4
+    if (d.menor_de_edad) {
+      y -= 10
+      y = drawSection(page1, 'REPRESENTANTE LEGAL / ACUDIENTE', y)
+      y -= 2
+      page1.drawLine({ start: { x: ML, y: y + 3 }, end: { x: W - MR, y: y + 3 }, thickness: 0.25, color: GRAY_L })
+      const acudiente: [string, string][] = [
+        ['Nombre completo',     d.nombre_acudiente || '—'],
+        ['Tipo de documento',   d.tipo_doc_acudiente || '—'],
+        ['Numero de documento', d.documento_acudiente || '—'],
+      ]
+      for (const [label, value] of acudiente) {
+        y = drawField(page1, label, value, y)
+      }
+    }
+
+    y -= 12
+    y = drawSection(page1, 'TEXTO DE AUTORIZACION', y)
+    y -= 2
 
     const clausulas: [string, string][] = [
       ['Introduccion',
-        'El Programa de Soporte a Pacientes de Valentech Pharma Colombia S.A.S., operado por BTS Integral de Clinicas Botospa S.A.S.,\n' +
-        'en cumplimiento de la Ley 1581/2012 y el Decreto 1377/2013, solicita autorizacion previa, expresa e informada del titular.'],
+        'El Programa de Soporte a Pacientes de Valentech Pharma Colombia S.A.S., operado por BTS Integral - Clinicas Botospa S.A.S., en cumplimiento de la Ley 1581/2012 y el Decreto 1377/2013, solicita autorizacion previa, expresa e informada del titular.'],
       ['1. Suministro de datos',
         'El paciente provee datos personales incluyendo informacion de contacto, edad y datos necesarios para solicitar historia clinica.'],
       ['2. Autorizacion de tratamiento',
@@ -211,62 +240,52 @@ serve(async (req: Request) => {
       ['3. Datos sensibles',
         'Incluyen historia clinica, formulas medicas y autorizaciones EPS. Finalidades: contacto, gestion ante EPS/IPS, tramites INVIMA/VUCE.'],
       ['4. Responsables y encargados',
-        'Valentech y/o BTS Integral como responsables del tratamiento bajo la normatividad vigente.'],
+        'Valentech Pharma Colombia S.A.S. y/o BTS Integral, como responsables del tratamiento bajo la normatividad vigente.'],
       ['5. Destinatarios',
-        'Autoridades de salud (INVIMA), operadores del programa y terceros necesarios para el servicio.'],
+        'Autoridades de salud (INVIMA), operadores del programa y terceros necesarios para la correcta prestacion del servicio.'],
       ['6. Transferencia internacional',
-        'Autoriza transferencias a servidores fuera de Colombia cuando sea necesario para la prestacion del servicio.'],
+        'Autoriza transferencias de datos a servidores fuera de Colombia cuando sea necesario para la prestacion del servicio.'],
       ['7. Derechos del titular',
-        'Conocer, actualizar, rectificar, solicitar prueba, revocar autorizacion. Quejas ante la SIC. Segun Politicas de Proteccion de Datos.'],
+        'Conocer, actualizar, rectificar, solicitar prueba de autorizacion y revocar. Quejas ante la SIC segun las Politicas de Proteccion de Datos.'],
       ['8. Estudios de vida real',
-        'Uso anonimizado con fines cientificos, sin modificar el tratamiento medico del paciente.'],
+        'Sus datos podran ser usados de forma anonimizada con fines cientificos, sin modificar el tratamiento medico del paciente.'],
       ['9. Contacto y politicas',
-        'valentechforlife.com - bts-integral.com - programaapoyandovidas@bts-integral.com - (57) 3209188394 - Calle 90 # 18-59, Bogota'],
+        'valentechforlife.com  |  bts-integral.com  |  programaapoyandovidas@bts-integral.com  |  (57) 3209188394  |  Calle 90 # 18-59, Bogota D.C.'],
     ]
-
     for (const [titulo, texto] of clausulas) {
-      if (y < CONTENT_BOT + 18) break
-      page1.drawText(titulo, { x: 18, y, size: 7.5, font: fontBold, color: TEAL_DARK })
-      y -= 11
-      const lineas = texto.split('\n')
-      for (const linea of lineas) {
-        if (y < CONTENT_BOT + 8) break
-        page1.drawText(linea, { x: 24, y, size: 7, font, color: BLACK })
-        y -= 10
-      }
-      y -= 4
+      y = drawClause(page1, titulo, texto, y)
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // PAGINA 2 - Declaracion y firma
+    // PAGINA 2 — Declaracion y firma
     // ════════════════════════════════════════════════════════════════════════
     const page2 = pdfDoc.addPage([W, H])
     drawHeader(page2, 2)
     drawFooter(page2, radicado)
 
-    let y2 = H - HEADER_H - 10
-    y2 = drawSectionTitle(page2, 'DECLARACION DE AUTORIZACION', y2)
+    let y2 = H - HEADER_H - 16
+    y2 = drawSection(page2, 'DECLARACION DE AUTORIZACION', y2)
     y2 -= 8
 
     const textosDeclaracion = [
       'He leido y entendido el presente documento de Autorizacion para el Tratamiento de Datos Personales.',
-      'Declaro que fui informado sobre las finalidades y condiciones del tratamiento, incluidos los Datos Sensibles.',
+      'Declaro que fui informado(a) sobre las finalidades y condiciones del tratamiento, incluidos los Datos Sensibles.',
       '',
-      'En consecuencia, ACEPTO / AUTORIZO expresamente a Valentech y/o BTS Integral para tratar mis datos conforme',
-      'a lo aqui senalado, asi como para realizar transferencias nacionales o internacionales cuando sean necesarias.',
+      'En consecuencia, ACEPTO y AUTORIZO expresamente a Valentech Pharma Colombia S.A.S. y/o BTS Integral',
+      'para tratar mis datos conforme a lo aqui senalado, incluidas transferencias nacionales e internacionales.',
     ]
-
     for (const linea of textosDeclaracion) {
-      page2.drawText(linea, { x: 18, y: y2, size: 8.5, font, color: BLACK })
-      y2 -= linea === '' ? 5 : 13
+      if (linea === '') { y2 -= 6; continue }
+      page2.drawText(linea, { x: ML, y: y2, size: 9, font, color: BLACK })
+      y2 -= 14
     }
 
-    y2 -= 10
-    page2.drawRectangle({ x: 18, y: y2 - 5, width: 195, height: 22, color: TEAL, borderColor: TEAL_DARK, borderWidth: 1 })
-    page2.drawText('(X)  ACEPTO / AUTORIZO', { x: 26, y: y2 + 3, size: 11, font: fontBold, color: WHITE })
-    y2 -= 32
+    y2 -= 12
+    page2.drawRectangle({ x: ML, y: y2 - 6, width: 220, height: 28, color: TEAL })
+    page2.drawText('(X)  ACEPTO Y AUTORIZO', { x: ML + 14, y: y2 + 5, size: 12, font: fontBold, color: WHITE })
+    y2 -= 38
 
-    y2 = drawSectionTitle(page2, 'FIRMA DEL PACIENTE O REPRESENTANTE LEGAL', y2)
+    y2 = drawSection(page2, 'FIRMA DEL PACIENTE O REPRESENTANTE LEGAL', y2)
     y2 -= 8
 
     let sigH = 0
@@ -274,40 +293,38 @@ serve(async (req: Request) => {
       const base64Data = firmaBase64.replace(/^data:image\/png;base64,/, '')
       const pngBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
       const sigImage = await pdfDoc.embedPng(pngBytes)
-      const maxW = 200; const maxSigH = 80
-      const ratio = Math.min(maxW / sigImage.width, maxSigH / sigImage.height)
+      const maxSigW = 220; const maxSigH = 90
+      const ratio = Math.min(maxSigW / sigImage.width, maxSigH / sigImage.height)
       const sw = sigImage.width * ratio; const sh = sigImage.height * ratio
-      page2.drawRectangle({ x: 18, y: y2 - sh - 8, width: sw + 18, height: sh + 8, borderColor: GRAY, borderWidth: 0.5 })
-      page2.drawImage(sigImage, { x: 27, y: y2 - sh - 4, width: sw, height: sh })
-      sigH = sh + 16
+      page2.drawRectangle({ x: ML, y: y2 - sh - 10, width: sw + 20, height: sh + 10, borderColor: GRAY_L, borderWidth: 0.8 })
+      page2.drawImage(sigImage, { x: ML + 10, y: y2 - sh - 5, width: sw, height: sh })
+      sigH = sh + 18
     } catch (_e) {
-      page2.drawRectangle({ x: 18, y: y2 - 48, width: 245, height: 48, borderColor: GRAY, borderWidth: 0.5 })
-      sigH = 56
+      page2.drawRectangle({ x: ML, y: y2 - 52, width: 250, height: 52, borderColor: GRAY_L, borderWidth: 0.8 })
+      sigH = 60
     }
 
-    y2 -= sigH + 6
-    page2.drawLine({ start: { x: 18, y: y2 + 3 }, end: { x: 275, y: y2 + 3 }, thickness: 0.7, color: TEAL })
+    y2 -= sigH
+    page2.drawLine({ start: { x: ML, y: y2 + 2 }, end: { x: ML + 280, y: y2 + 2 }, thickness: 0.6, color: TEAL })
     y2 -= 4
     const nombreFirmante = d.menor_de_edad && d.nombre_acudiente
-      ? `${d.nombre_acudiente} (Representante Legal)`
+      ? `${d.nombre_acudiente}  (Representante Legal)`
       : d.nombre_paciente
-    page2.drawText(nombreFirmante, { x: 18, y: y2, size: 8.5, font: fontBold, color: BLACK })
-    y2 -= 12
-    page2.drawText(`${d.tipo_documento}: ${d.numero_documento}`, { x: 18, y: y2, size: 7.5, font, color: GRAY })
-    y2 -= 11
-    page2.drawText(`Fecha y hora: ${fechaTexto}  ${horaTexto}`, { x: 18, y: y2, size: 7.5, font, color: GRAY })
+    page2.drawText(nombreFirmante,                               { x: ML, y: y2, size: 9,   font: fontBold, color: BLACK  }); y2 -= 13
+    page2.drawText(`${d.tipo_documento}: ${d.numero_documento}`, { x: ML, y: y2, size: 8,   font,           color: GRAY_D }); y2 -= 12
+    page2.drawText(`Fecha y hora: ${fechaTexto}  ${horaTexto}`,  { x: ML, y: y2, size: 8,   font,           color: GRAY_D }); y2 -= 11
     if (ipOrigen) {
-      y2 -= 10
-      page2.drawText(`IP de origen: ${ipOrigen}`, { x: 18, y: y2, size: 7, font, color: GRAY })
+      page2.drawText(`IP de origen: ${ipOrigen}`, { x: ML, y: y2, size: 7.5, font, color: GRAY_D }); y2 -= 10
     }
 
-    y2 -= 20
-    page2.drawRectangle({ x: 18, y: y2 - 5, width: W - 36, height: 26, color: TEAL_LITE, borderColor: TEAL, borderWidth: 0.5 })
+    y2 -= 16
+    page2.drawLine({ start: { x: ML, y: y2 + 22 }, end: { x: W - MR, y: y2 + 22 }, thickness: 0.5, color: TEAL })
+    page2.drawRectangle({ x: ML, y: y2 - 8, width: CW, height: 28, color: TEAL_LITE })
     page2.drawText('Documento generado electronicamente con validez juridica segun la Ley 527 de 1999 (Comercio Electronico).', {
-      x: 24, y: y2 + 5, size: 6.5, font, color: TEAL_DARK,
+      x: ML + 8, y: y2 + 5, size: 6.5, font, color: TEAL_DARK,
     })
-    page2.drawText(`Para verificar autenticidad contacte: ${CONTACT_EMAIL}`, {
-      x: 24, y: y2 - 5, size: 6.5, font, color: TEAL_DARK,
+    page2.drawText(`Para verificar su autenticidad, contacte: ${CONTACT_EMAIL}`, {
+      x: ML + 8, y: y2 - 5, size: 6.5, font, color: TEAL_DARK,
     })
 
     // ── Serializar PDF ───────────────────────────────────────────────────────

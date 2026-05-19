@@ -6,7 +6,7 @@ export type TipoDocumentoType = (typeof TipoDocumento)[number]
 // Documentos válidos solo para adultos (≥18 años)
 const DOCS_ADULTO = ['CC', 'CE'] as const
 // Documentos válidos solo para menores (< 18 años)
-const DOCS_MENOR = ['TI'] as const
+const DOCS_MENOR = ['TI', 'RC'] as const
 
 function calcularEdad(fechaNacimiento: string): number {
   const hoy = new Date()
