@@ -345,7 +345,7 @@ serve(async (req: Request) => {
     page3.drawRectangle({ x: ML + col1W + col2W, y: tableTop - tableH, width: col3W, height: tableH, borderColor: GRAY_L, borderWidth: 0.6 })
     // Texto col1
     page3.drawText('ACEPTO / AUTORIZO', { x: ML + 6, y: tableTop - 14, size: 8.5, font: fontBold, color: BLACK })
-    page3.drawText('\u2713', { x: ML + 6, y: tableTop - 30, size: 14, font: fontBold, color: TEAL })
+    page3.drawText('[X]', { x: ML + 6, y: tableTop - 30, size: 13, font: fontBold, color: TEAL })
     // Texto col3
     page3.drawText('FIRMA:', { x: ML + col1W + col2W + 6, y: tableTop - tableH + 10, size: 8, font: fontBold, color: GRAY_D })
 
