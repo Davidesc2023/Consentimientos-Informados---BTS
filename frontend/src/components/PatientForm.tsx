@@ -101,12 +101,12 @@ export default function PatientForm() {
       {/* Ciudad y dirección */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <Label>Ciudad / Municipio</Label>
+          <Label required>Ciudad / Municipio</Label>
           <input {...register('ciudad')} className={inputClass} placeholder="Ciudad" />
           <FieldError name="ciudad" />
         </div>
         <div>
-          <Label>Dirección de Residencia</Label>
+          <Label required>Dirección de Residencia</Label>
           <input
             {...register('direccion')}
             className={inputClass}
@@ -117,29 +117,33 @@ export default function PatientForm() {
       </div>
 
       {/* Menor de edad toggle */}
-      <div className="flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-md px-4 py-3">
+      <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-md px-4 py-3">
         <input
           id="menor_de_edad"
           type="checkbox"
           {...register('menor_de_edad')}
           className="h-4 w-4 rounded border-gray-300 text-[#0A6B6B] focus:ring-[#0A6B6B]"
         />
-        <label htmlFor="menor_de_edad" className="text-sm font-medium text-yellow-800 cursor-pointer">
-          El paciente es menor de edad (diligencia el acudiente o representante legal)
+        <label htmlFor="menor_de_edad" className="text-sm font-medium text-amber-800 cursor-pointer select-none">
+          El paciente es menor de edad — requiere datos del representante legal
         </label>
       </div>
+      <FieldError name="menor_de_edad" />
 
       {/* Datos acudiente (condicional) */}
       {menorDeEdad && (
-        <div className="border border-yellow-300 rounded-lg p-4 bg-yellow-50 space-y-4">
-          <h4 className="text-sm font-bold text-yellow-800">Datos del Representante Legal / Acudiente</h4>
+        <div className="border border-amber-300 rounded-lg p-4 bg-amber-50 space-y-4">
+          <h4 className="text-sm font-bold text-amber-800 flex items-center gap-2">
+            <span>⚠</span> Datos del Representante Legal / Acudiente
+            <span className="text-xs font-normal text-amber-700">(obligatorios para menores)</span>
+          </h4>
 
           <div>
             <Label required>Nombre Completo del Acudiente</Label>
             <input
               {...register('nombre_acudiente')}
               className={inputClass}
-              placeholder="Nombre completo"
+              placeholder="Nombre completo del representante legal"
             />
             <FieldError name="nombre_acudiente" />
           </div>
@@ -155,13 +159,14 @@ export default function PatientForm() {
                   </option>
                 ))}
               </select>
+              <FieldError name="tipo_doc_acudiente" />
             </div>
             <div>
               <Label required>Número de Documento</Label>
               <input
                 {...register('documento_acudiente')}
                 className={inputClass}
-                placeholder="Número"
+                placeholder="Número de documento"
               />
               <FieldError name="documento_acudiente" />
             </div>

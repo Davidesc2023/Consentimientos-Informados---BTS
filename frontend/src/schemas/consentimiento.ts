@@ -3,6 +3,22 @@ import { z } from 'zod'
 export const TipoDocumento = ['CC', 'TI', 'CE', 'Pasaporte'] as const
 export type TipoDocumentoType = (typeof TipoDocumento)[number]
 
+// Documentos válidos solo para adultos (≥18 años)
+const DOCS_ADULTO = ['CC', 'CE'] as const
+// Documentos válidos solo para menores (< 18 años)
+const DOCS_MENOR = ['TI'] as const
+
+function calcularEdad(fechaNacimiento: string): number {
+  const hoy = new Date()
+  const nacimiento = new Date(fechaNacimiento)
+  let edad = hoy.getFullYear() - nacimiento.getFullYear()
+  const mes = hoy.getMonth() - nacimiento.getMonth()
+  if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
+    edad--
+  }
+  return edad
+}
+
 export const consentimientoSchema = z
   .object({
     // Datos del paciente
@@ -22,8 +38,12 @@ export const consentimientoSchema = z
       .email('Correo electrónico inválido')
       .optional()
       .or(z.literal('')),
-    ciudad: z.string().min(2, 'Ingrese la ciudad').optional().or(z.literal('')),
-    direccion: z.string().min(5, 'Ingrese la dirección de residencia').optional().or(z.literal('')),
+    ciudad: z
+      .string()
+      .min(2, 'Ingrese la ciudad'),
+    direccion: z
+      .string()
+      .min(5, 'Ingrese la dirección de residencia'),
 
     // Paciente menor de edad
     menor_de_edad: z.boolean(),
@@ -40,12 +60,58 @@ export const consentimientoSchema = z
     }),
   })
   .superRefine((data, ctx) => {
+    // ── Validación documento vs edad ──────────────────────────────────────
+    if (data.fecha_nacimiento && data.tipo_documento) {
+      const edad = calcularEdad(data.fecha_nacimiento)
+      const esMenor = edad < 18
+
+      if (esMenor && (DOCS_ADULTO as readonly string[]).includes(data.tipo_documento)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['tipo_documento'],
+          message: `El documento ${data.tipo_documento} es válido solo para mayores de 18 años. El paciente tiene ${edad} años.`,
+        })
+      }
+
+      if (!esMenor && (DOCS_MENOR as readonly string[]).includes(data.tipo_documento)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['tipo_documento'],
+          message: `La Tarjeta de Identidad (TI) es válida solo para menores de 18 años. El paciente tiene ${edad} años.`,
+        })
+      }
+
+      // Auto-consistencia: menor_de_edad vs edad real
+      if (esMenor && !data.menor_de_edad) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['menor_de_edad'],
+          message: `El paciente tiene ${edad} años. Debe marcar que es menor de edad.`,
+        })
+      }
+      if (!esMenor && data.menor_de_edad) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['menor_de_edad'],
+          message: `El paciente tiene ${edad} años y es mayor de edad. No debe marcar este campo.`,
+        })
+      }
+    }
+
+    // ── Representante legal requerido si menor_de_edad ────────────────────
     if (data.menor_de_edad) {
       if (!data.nombre_acudiente || data.nombre_acudiente.trim().length < 3) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['nombre_acudiente'],
           message: 'Nombre del acudiente es requerido para menores de edad',
+        })
+      }
+      if (!data.tipo_doc_acudiente || data.tipo_doc_acudiente === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['tipo_doc_acudiente'],
+          message: 'Tipo de documento del acudiente es requerido para menores de edad',
         })
       }
       if (!data.documento_acudiente || data.documento_acudiente.trim().length < 4) {

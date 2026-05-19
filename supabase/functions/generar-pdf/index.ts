@@ -1,5 +1,5 @@
-// supabase/functions/generar-pdf/index.ts
-// Edge Function (Deno) — Genera PDF del consentimiento, lo sube a Storage y guarda registro en DB
+﻿// supabase/functions/generar-pdf/index.ts
+// Edge Function (Deno) - Genera PDF del consentimiento, lo sube a Storage y guarda registro en DB
 // Deploy: supabase functions deploy generar-pdf
 // Env vars requeridas: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY
 
@@ -29,7 +29,7 @@ interface DatosFormulario {
 
 interface RequestBody {
   datosFormulario: DatosFormulario
-  firmaBase64: string  // data:image/png;base64,....
+  firmaBase64: string
   ipOrigen?: string
 }
 
@@ -54,12 +54,10 @@ serve(async (req: Request) => {
       })
     }
 
-    // ── Supabase client (service role) ──────────────────────────────────────
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, serviceKey)
 
-    // ── Generar UUID del radicado ────────────────────────────────────────────
     const radicado = crypto.randomUUID()
     const now = new Date()
     const fechaTexto = now.toLocaleDateString('es-CO', {
@@ -67,281 +65,259 @@ serve(async (req: Request) => {
     })
     const horaTexto = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
 
-    // ── Construir PDF con pdf-lib ────────────────────────────────────────────
+    // ── Construir PDF ────────────────────────────────────────────────────────
     const pdfDoc = await PDFDocument.create()
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
 
-    const TEAL      = rgb(0.039, 0.42, 0.42)   // #0A6B6B
-    const TEAL_DARK = rgb(0.025, 0.30, 0.30)   // #075050
-    const TEAL_LITE = rgb(0.88, 0.95, 0.95)    // fondo suave
-    const BLACK     = rgb(0.1,  0.1,  0.1)
-    const GRAY      = rgb(0.45, 0.45, 0.45)
-    const GRAY_LITE = rgb(0.96, 0.96, 0.96)
-    const GOLD      = rgb(0.72, 0.525, 0.043)  // #B8860B
+    const TEAL      = rgb(0.039, 0.42,  0.42)
+    const TEAL_DARK = rgb(0.025, 0.30,  0.30)
+    const TEAL_LITE = rgb(0.90,  0.96,  0.96)
+    const BLACK     = rgb(0.12,  0.12,  0.12)
+    const GRAY      = rgb(0.40,  0.40,  0.40)
+    const GRAY_LITE = rgb(0.97,  0.97,  0.97)
+    const GOLD      = rgb(0.72,  0.525, 0.043)
     const WHITE     = rgb(1, 1, 1)
-    const W = 595; const H = 842               // A4
+    const W = 595; const H = 842
 
-    // ── Helper: encabezado de página ─────────────────────────────────────────
+    // ── Logo real desde Storage publico ─────────────────────────────────────
+    let logoImage: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null
+    try {
+      const logoUrl = `${supabaseUrl}/storage/v1/object/public/assets/logo.png`
+      const logoResp = await fetch(logoUrl)
+      if (logoResp.ok) {
+        const logoBytes = new Uint8Array(await logoResp.arrayBuffer())
+        logoImage = await pdfDoc.embedPng(logoBytes)
+      }
+    } catch (_) { /* fallback texto */ }
+
+    const HEADER_H = 56
+    const FOOTER_H = 22
+    const CONTENT_BOT = FOOTER_H + 8
+    const TOTAL_PAGES = 2
+
+    // ── Helper: encabezado ───────────────────────────────────────────────────
     const drawHeader = (page: ReturnType<typeof pdfDoc.addPage>, pageNum: number) => {
-      // Banda teal superior
-      page.drawRectangle({ x: 0, y: H - 72, width: W, height: 72, color: TEAL })
-      // Banda dorada fina debajo
-      page.drawRectangle({ x: 0, y: H - 75, width: W, height: 3, color: GOLD })
+      page.drawRectangle({ x: 0, y: H - HEADER_H, width: W, height: HEADER_H, color: TEAL })
+      page.drawRectangle({ x: 0, y: H - HEADER_H - 2, width: W, height: 2, color: GOLD })
 
-      // Bloque logo "BTS"
-      page.drawRectangle({ x: 22, y: H - 60, width: 50, height: 46, color: TEAL_DARK, borderColor: WHITE, borderWidth: 1 })
-      page.drawText('BTS',      { x: 30,  y: H - 38, size: 14, font: fontBold, color: WHITE })
-      page.drawText('INTEGRAL', { x: 24,  y: H - 52, size:  7, font,           color: WHITE })
+      if (logoImage) {
+        const lw = 88
+        const lh = lw * (logoImage.height / logoImage.width)
+        page.drawImage(logoImage, { x: 14, y: H - HEADER_H + (HEADER_H - lh) / 2, width: lw, height: lh })
+      } else {
+        page.drawRectangle({ x: 14, y: H - HEADER_H + 6, width: 46, height: 42, color: TEAL_DARK, borderColor: WHITE, borderWidth: 1 })
+        page.drawText('BTS',      { x: 22, y: H - HEADER_H + 28, size: 14, font: fontBold, color: WHITE })
+        page.drawText('INTEGRAL', { x: 15, y: H - HEADER_H + 14, size: 6,  font,           color: WHITE })
+      }
 
-      // Textos de cabecera
-      page.drawText('PROGRAMA DE SOPORTE A PACIENTES', {
-        x: 84, y: H - 26, size: 7.5, font, color: rgb(0.8, 0.95, 0.95),
-      })
-      page.drawText('Valentech Pharma Colombia', {
-        x: 84, y: H - 42, size: 14, font: fontBold, color: WHITE,
-      })
-      page.drawText('Operado por BTS Integral \u00b7 Cl\u00ednicas Botospa S.A.S.', {
-        x: 84, y: H - 57, size: 8, font, color: rgb(0.95, 0.85, 0.4),
-      })
-      // Número de página
-      page.drawText(`${pageNum} / 3`, {
-        x: W - 50, y: H - 44, size: 9, font: fontBold, color: rgb(0.8, 0.95, 0.95),
-      })
+      const tx = logoImage ? 114 : 72
+      page.drawText('PROGRAMA DE SOPORTE A PACIENTES', { x: tx, y: H - HEADER_H + 38, size: 7,    font,      color: rgb(0.75, 0.93, 0.93) })
+      page.drawText('Valentech Pharma Colombia',        { x: tx, y: H - HEADER_H + 24, size: 13,   font: fontBold, color: WHITE })
+      page.drawText('Operado por BTS Integral - Clinicas Botospa S.A.S.', { x: tx, y: H - HEADER_H + 10, size: 7.5, font, color: rgb(0.95, 0.85, 0.4) })
+      page.drawText(`${pageNum} / ${TOTAL_PAGES}`, { x: W - 44, y: H - HEADER_H + 24, size: 9, font: fontBold, color: rgb(0.8, 0.95, 0.95) })
     }
 
-    // ── Helper: título de sección ─────────────────────────────────────────────
-    const drawSectionTitle = (page: ReturnType<typeof pdfDoc.addPage>, label: string, yPos: number) => {
-      page.drawRectangle({ x: 22, y: yPos - 4, width: W - 44, height: 18, color: TEAL_LITE })
-      page.drawRectangle({ x: 22, y: yPos - 4, width: 4, height: 18, color: TEAL })
-      page.drawText(label, { x: 32, y: yPos, size: 9, font: fontBold, color: TEAL_DARK })
-      return yPos - 22
+    // ── Helper: pie de pagina ────────────────────────────────────────────────
+    const drawFooter = (page: ReturnType<typeof pdfDoc.addPage>, rad: string) => {
+      page.drawRectangle({ x: 0, y: 0, width: W, height: FOOTER_H, color: TEAL_LITE })
+      page.drawRectangle({ x: 0, y: FOOTER_H, width: W, height: 1, color: TEAL })
+      page.drawText(`BTS Integral - Clinicas Botospa S.A.S. - ${CONTACT_EMAIL}`, { x: 14, y: 7, size: 6.5, font, color: GRAY })
+      page.drawText(`Radicado: ${rad}`, { x: W - 200, y: 7, size: 6.5, font, color: TEAL_DARK })
     }
 
-    // ── Helper: fila de dato ──────────────────────────────────────────────────
+    // ── Helper: titulo de seccion ────────────────────────────────────────────
+    const drawSectionTitle = (page: ReturnType<typeof pdfDoc.addPage>, label: string, yPos: number): number => {
+      page.drawRectangle({ x: 14, y: yPos - 3, width: W - 28, height: 16, color: TEAL_LITE })
+      page.drawRectangle({ x: 14, y: yPos - 3, width: 3.5, height: 16, color: TEAL })
+      page.drawText(label, { x: 22, y: yPos + 1, size: 8.5, font: fontBold, color: TEAL_DARK })
+      return yPos - 20
+    }
+
+    // ── Helper: fila de dato ─────────────────────────────────────────────────
+    const ROW_H = 14
     const drawDataRow = (
       page: ReturnType<typeof pdfDoc.addPage>,
       label: string, value: string,
       yPos: number, shade: boolean,
-    ) => {
-      if (shade) page.drawRectangle({ x: 22, y: yPos - 3, width: W - 44, height: 16, color: GRAY_LITE })
-      page.drawText(label, { x: 28,  y: yPos, size: 8, font: fontBold, color: GRAY })
-      page.drawText(value, { x: 185, y: yPos, size: 8, font,           color: BLACK })
-      return yPos - 16
-    }
-
-    // ── Helper: pie de página ─────────────────────────────────────────────────
-    const drawFooter = (page: ReturnType<typeof pdfDoc.addPage>, rad: string) => {
-      page.drawRectangle({ x: 0, y: 0, width: W, height: 32, color: TEAL_LITE })
-      page.drawRectangle({ x: 0, y: 32, width: W, height: 1,  color: TEAL })
-      page.drawText(`BTS Integral \u00b7 Cl\u00ednicas Botospa S.A.S. \u00b7 ${CONTACT_EMAIL}`, {
-        x: 22, y: 12, size: 7, font, color: GRAY,
-      })
-      page.drawText(`Radicado: ${rad}`, {
-        x: W - 215, y: 12, size: 7, font, color: TEAL_DARK,
-      })
+    ): number => {
+      if (shade) page.drawRectangle({ x: 14, y: yPos - 2, width: W - 28, height: ROW_H, color: GRAY_LITE })
+      page.drawText(label, { x: 18,  y: yPos + 1, size: 7.5, font: fontBold, color: GRAY })
+      page.drawText(value, { x: 185, y: yPos + 1, size: 7.5, font,           color: BLACK })
+      return yPos - ROW_H
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // PÁGINA 1 — Datos del paciente
+    // PAGINA 1 - Datos del paciente + Texto legal
     // ════════════════════════════════════════════════════════════════════════
     const page1 = pdfDoc.addPage([W, H])
     drawHeader(page1, 1)
     drawFooter(page1, radicado)
 
-    let y = H - 95
+    let y = H - HEADER_H - 10
 
-    // Título del documento
     page1.drawText('AUTORIZACION TRATAMIENTO DE DATOS PERSONALES', {
-      x: 22, y, size: 11, font: fontBold, color: TEAL_DARK,
+      x: 14, y, size: 10.5, font: fontBold, color: TEAL_DARK,
     })
-    y -= 16
-
-    // Info del radicado
-    page1.drawText(`Radicado:`, { x: 22, y, size: 8, font: fontBold, color: GRAY })
-    page1.drawText(radicado, { x: 85, y, size: 8, font, color: BLACK })
     y -= 13
-    page1.drawText(`Fecha:`, { x: 22, y, size: 8, font: fontBold, color: GRAY })
-    page1.drawText(`${fechaTexto}  \u00b7  ${horaTexto}`, { x: 85, y, size: 8, font, color: BLACK })
-    y -= 20
+    page1.drawText(`Radicado: ${radicado}`, { x: 14, y, size: 7.5, font, color: GRAY })
+    page1.drawText(`Fecha: ${fechaTexto}  -  ${horaTexto}`, { x: 280, y, size: 7.5, font, color: GRAY })
+    y -= 14
 
-    // Sección datos del paciente
     y = drawSectionTitle(page1, 'DATOS DEL PACIENTE', y)
-    y -= 6
+    y -= 2
 
     const campos: [string, string][] = [
-      ['Nombre completo',    d.nombre_paciente],
-      ['Tipo de documento',  d.tipo_documento],
-      ['No. de documento',   d.numero_documento],
-      ['Fecha de nacimiento',d.fecha_nacimiento],
-      ['Telefono / Celular', d.telefono],
-      ['Correo electronico', d.correo || '—'],
-      ['Ciudad / Municipio', d.ciudad || '—'],
-      ['Direccion',          d.direccion || '—'],
+      ['Nombre completo',     d.nombre_paciente],
+      ['Tipo de documento',   d.tipo_documento],
+      ['N. de documento',     d.numero_documento],
+      ['Fecha de nacimiento', d.fecha_nacimiento],
+      ['Telefono / Celular',  d.telefono],
+      ['Correo electronico',  d.correo || '-'],
+      ['Ciudad / Municipio',  d.ciudad || '-'],
+      ['Direccion',           d.direccion || '-'],
     ]
     campos.forEach(([label, value], i) => {
       y = drawDataRow(page1, label, value, y, i % 2 === 0)
     })
 
     if (d.menor_de_edad) {
-      y -= 14
-      y = drawSectionTitle(page1, 'REPRESENTANTE LEGAL / ACUDIENTE', y)
       y -= 6
+      y = drawSectionTitle(page1, 'REPRESENTANTE LEGAL / ACUDIENTE', y)
+      y -= 2
       const acudiente: [string, string][] = [
-        ['Nombre completo', d.nombre_acudiente || '—'],
-        ['Tipo documento',  d.tipo_doc_acudiente || '—'],
-        ['No. documento',   d.documento_acudiente || '—'],
+        ['Nombre completo', d.nombre_acudiente || '-'],
+        ['Tipo documento',  d.tipo_doc_acudiente || '-'],
+        ['N. documento',    d.documento_acudiente || '-'],
       ]
       acudiente.forEach(([label, value], i) => {
         y = drawDataRow(page1, label, value, y, i % 2 === 0)
       })
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // PÁGINA 2 — Texto legal
-    // ════════════════════════════════════════════════════════════════════════
-    const page2 = pdfDoc.addPage([W, H])
-    drawHeader(page2, 2)
-    drawFooter(page2, radicado)
-
-    let y2 = H - 95
-    y2 = drawSectionTitle(page2, 'AUTORIZACION — TEXTO LEGAL COMPLETO', y2)
-    y2 -= 8
+    y -= 8
+    y = drawSectionTitle(page1, 'AUTORIZACION - TEXTO LEGAL', y)
+    y -= 4
 
     const clausulas: [string, string][] = [
       ['Introduccion',
-        'El Programa de Soporte a Pacientes de Valentech Pharma Colombia S.A.S., operado por BTS Integral\n' +
-        'de Clinicas Botospa S.A.S., en cumplimiento de la Ley 1581/2012 y el Decreto 1377/2013, define\n' +
-        'este documento para obtener la autorizacion previa, expresa e informada del titular.'],
+        'El Programa de Soporte a Pacientes de Valentech Pharma Colombia S.A.S., operado por BTS Integral de Clinicas Botospa S.A.S.,\n' +
+        'en cumplimiento de la Ley 1581/2012 y el Decreto 1377/2013, solicita autorizacion previa, expresa e informada del titular.'],
       ['1. Suministro de datos',
-        'El paciente provee datos personales incluyendo informacion de contacto, edad y datos necesarios\n' +
-        'para solicitar historia clinica y reportes de diagnostico.'],
+        'El paciente provee datos personales incluyendo informacion de contacto, edad y datos necesarios para solicitar historia clinica.'],
       ['2. Autorizacion de tratamiento',
-        'Autoriza a BTS Integral para tratar datos y obtener informacion clinica de medicos tratantes,\n' +
-        'IPS, dispensadores y aseguradoras.'],
+        'Autoriza a BTS Integral para tratar datos y obtener informacion clinica de medicos tratantes, IPS, dispensadores y aseguradoras.'],
       ['3. Datos sensibles',
-        'Incluyen historia clinica, formulas medicas y autorizaciones EPS. Finalidades: contacto,\n' +
-        'gestion ante EPS/IPS, tramites INVIMA/VUCE.'],
+        'Incluyen historia clinica, formulas medicas y autorizaciones EPS. Finalidades: contacto, gestion ante EPS/IPS, tramites INVIMA/VUCE.'],
       ['4. Responsables y encargados',
         'Valentech y/o BTS Integral como responsables del tratamiento bajo la normatividad vigente.'],
       ['5. Destinatarios',
         'Autoridades de salud (INVIMA), operadores del programa y terceros necesarios para el servicio.'],
       ['6. Transferencia internacional',
-        'Autoriza transferencias a servidores fuera de Colombia cuando sea necesario para la prestacion\n' +
-        'del servicio.'],
+        'Autoriza transferencias a servidores fuera de Colombia cuando sea necesario para la prestacion del servicio.'],
       ['7. Derechos del titular',
-        'Conocer, actualizar, rectificar, solicitar prueba, revocar autorizacion. Quejas ante la SIC.\n' +
-        'Ejercicio segun Politicas de Proteccion de Datos de cada empresa responsable.'],
+        'Conocer, actualizar, rectificar, solicitar prueba, revocar autorizacion. Quejas ante la SIC. Segun Politicas de Proteccion de Datos.'],
       ['8. Estudios de vida real',
         'Uso anonimizado con fines cientificos, sin modificar el tratamiento medico del paciente.'],
       ['9. Contacto y politicas',
-        'valentechforlife.com  |  bts-integral.com\n' +
-        'programaapoyandovidas@bts-integral.com  |  (57) 3209188394\n' +
-        'Calle 90 # 18-59, Bogota, Colombia  |  legal@bts-corporate.com'],
+        'valentechforlife.com - bts-integral.com - programaapoyandovidas@bts-integral.com - (57) 3209188394 - Calle 90 # 18-59, Bogota'],
     ]
 
     for (const [titulo, texto] of clausulas) {
-      if (y2 < 50) break
-      page2.drawText(titulo, { x: 22, y: y2, size: 8, font: fontBold, color: TEAL_DARK })
-      y2 -= 13
+      if (y < CONTENT_BOT + 18) break
+      page1.drawText(titulo, { x: 18, y, size: 7.5, font: fontBold, color: TEAL_DARK })
+      y -= 11
       const lineas = texto.split('\n')
       for (const linea of lineas) {
-        if (y2 < 50) break
-        page2.drawText(linea, { x: 30, y: y2, size: 7.5, font, color: BLACK })
-        y2 -= 11
+        if (y < CONTENT_BOT + 8) break
+        page1.drawText(linea, { x: 24, y, size: 7, font, color: BLACK })
+        y -= 10
       }
-      y2 -= 6
+      y -= 4
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // PÁGINA 3 — Declaración y firma
+    // PAGINA 2 - Declaracion y firma
     // ════════════════════════════════════════════════════════════════════════
-    const page3 = pdfDoc.addPage([W, H])
-    drawHeader(page3, 3)
-    drawFooter(page3, radicado)
+    const page2 = pdfDoc.addPage([W, H])
+    drawHeader(page2, 2)
+    drawFooter(page2, radicado)
 
-    let y3 = H - 95
-    y3 = drawSectionTitle(page3, 'DECLARACION DE AUTORIZACION', y3)
-    y3 -= 10
+    let y2 = H - HEADER_H - 10
+    y2 = drawSectionTitle(page2, 'DECLARACION DE AUTORIZACION', y2)
+    y2 -= 8
 
     const textosDeclaracion = [
-      'He leido y entendido el presente documento de Autorizacion para el Tratamiento de Datos',
-      'Personales. Declaro que se me informo sobre las finalidades y condiciones del tratamiento,',
-      'incluidos los Datos Sensibles.',
+      'He leido y entendido el presente documento de Autorizacion para el Tratamiento de Datos Personales.',
+      'Declaro que fui informado sobre las finalidades y condiciones del tratamiento, incluidos los Datos Sensibles.',
       '',
-      'En consecuencia, ACEPTO / AUTORIZO expresamente a Valentech y/o BTS Integral para tratar',
-      'mis datos conforme a lo aqui senalado, asi como para realizar transferencias nacionales o',
-      'internacionales cuando sean necesarias para cumplir tales finalidades.',
+      'En consecuencia, ACEPTO / AUTORIZO expresamente a Valentech y/o BTS Integral para tratar mis datos conforme',
+      'a lo aqui senalado, asi como para realizar transferencias nacionales o internacionales cuando sean necesarias.',
     ]
 
     for (const linea of textosDeclaracion) {
-      page3.drawText(linea, { x: 22, y: y3, size: 9, font, color: BLACK })
-      y3 -= linea === '' ? 6 : 14
+      page2.drawText(linea, { x: 18, y: y2, size: 8.5, font, color: BLACK })
+      y2 -= linea === '' ? 5 : 13
     }
 
-    // Caja de aceptación
-    y3 -= 10
-    page3.drawRectangle({ x: 22, y: y3 - 6, width: 200, height: 24, color: TEAL, borderColor: TEAL_DARK, borderWidth: 1 })
-    page3.drawText('(X)  ACEPTO / AUTORIZO', { x: 30, y: y3 + 4, size: 12, font: fontBold, color: WHITE })
-    y3 -= 36
+    y2 -= 10
+    page2.drawRectangle({ x: 18, y: y2 - 5, width: 195, height: 22, color: TEAL, borderColor: TEAL_DARK, borderWidth: 1 })
+    page2.drawText('(X)  ACEPTO / AUTORIZO', { x: 26, y: y2 + 3, size: 11, font: fontBold, color: WHITE })
+    y2 -= 32
 
-    // Sección de firma
-    y3 = drawSectionTitle(page3, 'FIRMA DEL PACIENTE O REPRESENTANTE LEGAL', y3)
-    y3 -= 10
+    y2 = drawSectionTitle(page2, 'FIRMA DEL PACIENTE O REPRESENTANTE LEGAL', y2)
+    y2 -= 8
 
-    // Insertar imagen de firma
     let sigH = 0
     try {
       const base64Data = firmaBase64.replace(/^data:image\/png;base64,/, '')
       const pngBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
       const sigImage = await pdfDoc.embedPng(pngBytes)
-      const maxW = 220; const maxSigH = 90
+      const maxW = 200; const maxSigH = 80
       const ratio = Math.min(maxW / sigImage.width, maxSigH / sigImage.height)
       const sw = sigImage.width * ratio; const sh = sigImage.height * ratio
-      // Caja de firma con borde
-      page3.drawRectangle({ x: 22, y: y3 - sh - 10, width: sw + 20, height: sh + 10, borderColor: GRAY, borderWidth: 0.5 })
-      page3.drawImage(sigImage, { x: 32, y: y3 - sh - 5, width: sw, height: sh })
-      sigH = sh + 20
+      page2.drawRectangle({ x: 18, y: y2 - sh - 8, width: sw + 18, height: sh + 8, borderColor: GRAY, borderWidth: 0.5 })
+      page2.drawImage(sigImage, { x: 27, y: y2 - sh - 4, width: sw, height: sh })
+      sigH = sh + 16
     } catch (_e) {
-      page3.drawRectangle({ x: 22, y: y3 - 50, width: 250, height: 50, borderColor: GRAY, borderWidth: 0.5 })
-      sigH = 60
+      page2.drawRectangle({ x: 18, y: y2 - 48, width: 245, height: 48, borderColor: GRAY, borderWidth: 0.5 })
+      sigH = 56
     }
 
-    y3 -= sigH + 8
-
-    // Línea y datos del firmante
-    page3.drawLine({ start: { x: 22, y: y3 + 4 }, end: { x: 280, y: y3 + 4 }, thickness: 0.8, color: TEAL })
-    y3 -= 5
+    y2 -= sigH + 6
+    page2.drawLine({ start: { x: 18, y: y2 + 3 }, end: { x: 275, y: y2 + 3 }, thickness: 0.7, color: TEAL })
+    y2 -= 4
     const nombreFirmante = d.menor_de_edad && d.nombre_acudiente
       ? `${d.nombre_acudiente} (Representante Legal)`
       : d.nombre_paciente
-    page3.drawText(nombreFirmante, { x: 22, y: y3, size: 9, font: fontBold, color: BLACK })
-    y3 -= 13
-    page3.drawText(`${d.tipo_documento}: ${d.numero_documento}`, { x: 22, y: y3, size: 8, font, color: GRAY })
-    y3 -= 13
-    page3.drawText(`Fecha y hora: ${fechaTexto}  ${horaTexto}`, { x: 22, y: y3, size: 8, font, color: GRAY })
+    page2.drawText(nombreFirmante, { x: 18, y: y2, size: 8.5, font: fontBold, color: BLACK })
+    y2 -= 12
+    page2.drawText(`${d.tipo_documento}: ${d.numero_documento}`, { x: 18, y: y2, size: 7.5, font, color: GRAY })
+    y2 -= 11
+    page2.drawText(`Fecha y hora: ${fechaTexto}  ${horaTexto}`, { x: 18, y: y2, size: 7.5, font, color: GRAY })
     if (ipOrigen) {
-      y3 -= 13
-      page3.drawText(`IP de origen: ${ipOrigen}`, { x: 22, y: y3, size: 7.5, font, color: GRAY })
+      y2 -= 10
+      page2.drawText(`IP de origen: ${ipOrigen}`, { x: 18, y: y2, size: 7, font, color: GRAY })
     }
 
-    // Nota de validez
-    y3 -= 24
-    page3.drawRectangle({ x: 22, y: y3 - 6, width: W - 44, height: 30, color: TEAL_LITE, borderColor: TEAL, borderWidth: 0.5 })
-    page3.drawText('Documento generado electronicamente con validez juridica segun la Ley 527 de 1999 (Comercio Electronico).', {
-      x: 28, y: y3 + 4, size: 7, font, color: TEAL_DARK,
+    y2 -= 20
+    page2.drawRectangle({ x: 18, y: y2 - 5, width: W - 36, height: 26, color: TEAL_LITE, borderColor: TEAL, borderWidth: 0.5 })
+    page2.drawText('Documento generado electronicamente con validez juridica segun la Ley 527 de 1999 (Comercio Electronico).', {
+      x: 24, y: y2 + 5, size: 6.5, font, color: TEAL_DARK,
     })
-    page3.drawText('Para verificar autenticidad contacte: ' + CONTACT_EMAIL, {
-      x: 28, y: y3 - 7, size: 7, font, color: TEAL_DARK,
+    page2.drawText(`Para verificar autenticidad contacte: ${CONTACT_EMAIL}`, {
+      x: 24, y: y2 - 5, size: 6.5, font, color: TEAL_DARK,
     })
 
     // ── Serializar PDF ───────────────────────────────────────────────────────
     const pdfBytes = await pdfDoc.save()
 
-    // ── Subir a Supabase Storage ─────────────────────────────────────────────
+    // ── Nombre del archivo: CI-{numero_documento}-{radicado} ─────────────────
+    const docSlug = d.numero_documento.replace(/[^A-Za-z0-9]/g, '')
     const year = now.getFullYear()
     const month = String(now.getMonth() + 1).padStart(2, '0')
-    const pdfPath = `${year}/${month}/${radicado}.pdf`
+    const pdfFileName = `CI-${docSlug}-${radicado}.pdf`
+    const pdfPath = `${year}/${month}/${pdfFileName}`
 
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
@@ -349,14 +325,12 @@ serve(async (req: Request) => {
 
     if (uploadError) throw new Error(`Storage upload: ${uploadError.message}`)
 
-    // Bucket es privado — se requiere URL firmada (válida por 5 años)
     const { data: signedData, error: signedError } = await supabase.storage
       .from(BUCKET)
-      .createSignedUrl(pdfPath, 157_680_000)  // 5 años en segundos
+      .createSignedUrl(pdfPath, 157_680_000)
     if (signedError) throw new Error(`Signed URL: ${signedError.message}`)
     const pdfUrl = signedData.signedUrl
 
-    // ── Insertar registro en BD ──────────────────────────────────────────────
     const { error: dbError } = await supabase.from('consentimientos').insert({
       id: radicado,
       nombre_paciente: d.nombre_paciente,
@@ -379,27 +353,26 @@ serve(async (req: Request) => {
 
     if (dbError) throw new Error(`DB insert: ${dbError.message}`)
 
-    // ── Enviar email via Resend ──────────────────────────────────────────────
     const resendKey = Deno.env.get('RESEND_API_KEY')
     if (resendKey && d.correo) {
       const emailBody = {
         from: `BTS Integral <noreply@bts-integral.com>`,
         to: [d.correo],
         bcc: [CONTACT_EMAIL],
-        subject: `Consentimiento registrado – Radicado ${radicado}`,
+        subject: `Consentimiento registrado - Radicado ${radicado}`,
         html: `
           <h2 style="color:#0A6B6B">Consentimiento Informado Registrado</h2>
           <p>Estimado/a <strong>${d.nombre_paciente}</strong>,</p>
-          <p>Su autorización para el tratamiento de datos personales en el ${PROGRAM_NAME} ha sido registrada exitosamente.</p>
-          <p><strong>Número de radicado:</strong> <code>${radicado}</code></p>
+          <p>Su autorizacion para el tratamiento de datos personales en el ${PROGRAM_NAME} ha sido registrada exitosamente.</p>
+          <p><strong>Numero de radicado:</strong> <code>${radicado}</code></p>
           <p><strong>Fecha:</strong> ${fechaTexto} ${horaTexto}</p>
           <p>Puede descargar su copia del documento firmado en el siguiente enlace:<br>
           <a href="${pdfUrl}" style="color:#0A6B6B">${pdfUrl}</a></p>
           <hr>
           <p style="font-size:12px;color:#666">
-            BTS Integral · Clínicas Botospa S.A.S.<br>
-            Calle 90 # 18-59, Bogotá, Colombia<br>
-            ${CONTACT_EMAIL} · (57) 3209188394
+            BTS Integral - Clinicas Botospa S.A.S.<br>
+            Calle 90 # 18-59, Bogota, Colombia<br>
+            ${CONTACT_EMAIL} - (57) 3209188394
           </p>
         `,
       }
