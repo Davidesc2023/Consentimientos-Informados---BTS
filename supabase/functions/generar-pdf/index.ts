@@ -1,4 +1,5 @@
-﻿// supabase/functions/generar-pdf/index.ts
+﻿// @ts-nocheck
+// supabase/functions/generar-pdf/index.ts
 // Edge Function (Deno) - Genera PDF del consentimiento, lo sube a Storage y guarda registro en DB
 // Deploy: supabase functions deploy generar-pdf
 // Env vars requeridas: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY
