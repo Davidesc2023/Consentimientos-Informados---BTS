@@ -147,27 +147,27 @@ serve(async (req: Request) => {
     }
 
     // ── Campo de datos: label | valor, solo linea inferior, sin fondo ────────
-    const FIELD_H = 17
+    const FIELD_H = 20
     const VAL_X   = ML + 170
     const drawField = (page, label, value, yPos) => {
-      page.drawText(label,        { x: ML + 5, y: yPos, size: 7.5, font: fontBold, color: GRAY_D })
-      page.drawText(value || '—', { x: VAL_X,  y: yPos, size: 8,   font,           color: BLACK  })
-      page.drawLine({ start: { x: ML, y: yPos - 6 }, end: { x: W - MR, y: yPos - 6 }, thickness: 0.25, color: GRAY_L })
+      page.drawText(label,        { x: ML + 5, y: yPos, size: 8,   font: fontBold, color: GRAY_D })
+      page.drawText(value || '—', { x: VAL_X,  y: yPos, size: 8.5, font,           color: BLACK  })
+      page.drawLine({ start: { x: ML, y: yPos - 7 }, end: { x: W - MR, y: yPos - 7 }, thickness: 0.25, color: GRAY_L })
       return yPos - FIELD_H
     }
 
     // ── Clausula legal: titulo bold + parrafo con wordwrap ───────────────────
     const drawClause = (page, title, body, yPos) => {
-      if (yPos < FOOTER_H + 22) return yPos
-      page.drawText(title, { x: ML + 5, y: yPos, size: 8, font: fontBold, color: TEAL_DARK })
-      yPos -= 12
-      const lines = wrapText(body, CW - 20, 7.5, font)
+      if (yPos < FOOTER_H + 26) return yPos
+      page.drawText(title, { x: ML + 5, y: yPos, size: 8.5, font: fontBold, color: TEAL_DARK })
+      yPos -= 14
+      const lines = wrapText(body, CW - 24, 8, font)
       for (const line of lines) {
-        if (yPos < FOOTER_H + 12) break
-        page.drawText(line, { x: ML + 15, y: yPos, size: 7.5, font, color: BLACK })
-        yPos -= 11
+        if (yPos < FOOTER_H + 14) break
+        page.drawText(line, { x: ML + 15, y: yPos, size: 8, font, color: BLACK })
+        yPos -= 13
       }
-      return yPos - 6
+      return yPos - 10
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -183,19 +183,17 @@ serve(async (req: Request) => {
     page1.drawText('AUTORIZACION DE TRATAMIENTO DE DATOS PERSONALES', {
       x: ML, y, size: 11.5, font: fontBold, color: TEAL_DARK,
     })
-    y -= 6
+    y -= 10
     page1.drawLine({ start: { x: ML, y }, end: { x: W - MR, y }, thickness: 0.8, color: TEAL })
-    y -= 9
+    y -= 12
 
     // Radicado y fecha en la misma linea
     page1.drawText(`Radicado: ${radicado}`, { x: ML, y, size: 7.5, font, color: GRAY_D })
     page1.drawText(`Fecha: ${fechaTexto}   ${horaTexto}`, { x: W - MR - 132, y, size: 7.5, font, color: GRAY_D })
-    y -= 18
+    y -= 22
 
     // Seccion datos del paciente
     y = drawSection(page1, 'DATOS DEL PACIENTE', y)
-    y -= 2
-    page1.drawLine({ start: { x: ML, y: y + 3 }, end: { x: W - MR, y: y + 3 }, thickness: 0.25, color: GRAY_L })
 
     const campos: [string, string][] = [
       ['Nombre completo',          d.nombre_paciente],
@@ -212,10 +210,8 @@ serve(async (req: Request) => {
     }
 
     if (d.menor_de_edad) {
-      y -= 10
+      y -= 14
       y = drawSection(page1, 'REPRESENTANTE LEGAL / ACUDIENTE', y)
-      y -= 2
-      page1.drawLine({ start: { x: ML, y: y + 3 }, end: { x: W - MR, y: y + 3 }, thickness: 0.25, color: GRAY_L })
       const acudiente: [string, string][] = [
         ['Nombre completo',     d.nombre_acudiente || '—'],
         ['Tipo de documento',   d.tipo_doc_acudiente || '—'],
@@ -226,9 +222,9 @@ serve(async (req: Request) => {
       }
     }
 
-    y -= 12
+    y -= 18
     y = drawSection(page1, 'TEXTO DE AUTORIZACION', y)
-    y -= 2
+    y -= 6
 
     const clausulas: [string, string][] = [
       ['Introduccion',

@@ -1,7 +1,15 @@
 import { z } from 'zod'
 
-export const TipoDocumento = ['CC', 'TI', 'CE', 'Pasaporte'] as const
+export const TipoDocumento = ['CC', 'TI', 'CE', 'RC', 'Pasaporte'] as const
 export type TipoDocumentoType = (typeof TipoDocumento)[number]
+
+export const TipoDocumentoLabel: Record<TipoDocumentoType, string> = {
+  CC:        'CC — Cédula de Ciudadanía',
+  TI:        'TI — Tarjeta de Identidad',
+  CE:        'CE — Cédula de Extranjería',
+  RC:        'RC — Registro Civil',
+  Pasaporte: 'Pasaporte',
+}
 
 // Documentos válidos solo para adultos (≥18 años)
 const DOCS_ADULTO = ['CC', 'CE'] as const
@@ -77,7 +85,7 @@ export const consentimientoSchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['tipo_documento'],
-          message: `La Tarjeta de Identidad (TI) es válida solo para menores de 18 años. El paciente tiene ${edad} años.`,
+          message: `El documento ${data.tipo_documento} (TI/RC) es válido solo para menores de 18 años. El paciente tiene ${edad} años.`,
         })
       }
 

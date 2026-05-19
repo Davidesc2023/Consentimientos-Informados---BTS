@@ -1,5 +1,5 @@
 import { useFormContext } from 'react-hook-form'
-import { TipoDocumento, type ConsentimientoFormData } from '../schemas/consentimiento'
+import { TipoDocumento, TipoDocumentoLabel, type ConsentimientoFormData } from '../schemas/consentimiento'
 
 function FieldError({ name }: { name: keyof ConsentimientoFormData }) {
   const {
@@ -51,7 +51,7 @@ export default function PatientForm() {
             <option value="">Seleccione…</option>
             {TipoDocumento.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {TipoDocumentoLabel[t]}
               </option>
             ))}
           </select>
@@ -155,7 +155,7 @@ export default function PatientForm() {
                 <option value="">Seleccione…</option>
                 {TipoDocumento.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {TipoDocumentoLabel[t]}
                   </option>
                 ))}
               </select>
